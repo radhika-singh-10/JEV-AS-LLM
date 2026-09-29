@@ -1,0 +1,15 @@
+{
+  "name": "jev-llm-router-guardrails",
+  "version": "0.1.0",
+  "description": "Small Jev-style decision layer demo for LLM provider routing, content moderation, and guardrails.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node src/index.js",
+    "demo": "node src/index.js --demo",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
