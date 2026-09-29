@@ -1,6 +1,6 @@
 # Jev LLM Router With Guardrails
 
-Small runnable project showing how a Jev-style typed decision layer can route an LLM request to a high, medium, or low cost/performance model/provider based on intent, content risk, context length, confidentiality, and safety policy.
+Production-shaped project showing how a Jev-style typed decision layer can route an LLM request to a high, medium, or low cost/performance model/provider based on intent, content risk, context length, confidentiality, and safety policy.
 
 This project uses a local `JevDecisionLayer` adapter so it runs without private TypeSafe AI credentials. The adapter is intentionally shaped like a real Jev integration: unstructured request state goes in, typed choices with probabilities and confidence come out.
 
@@ -12,6 +12,11 @@ This project uses a local `JevDecisionLayer` adapter so it runs without private 
 - Input guardrails for prompt injection, secret leakage, and oversized requests.
 - Output guardrails for secret redaction and unsafe content checks.
 - LLM fallback behavior when the decision confidence is low.
+- HTTP API with health, metrics, route, and audit endpoints.
+- Config-driven routing policy.
+- Provider registry abstraction for hosted and self-hosted models.
+- Structured JSON logs, in-memory metrics, and audit events.
+- CI workflow and Dockerfile.
 
 ## Architecture
 
@@ -24,6 +29,8 @@ flowchart TD
   E --> F["Mock LLM Client"]
   F --> G["Output Guardrails"]
 ```
+
+For the full service design, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Run
 
@@ -41,6 +48,48 @@ Run tests:
 
 ```bash
 npm test
+```
+
+## Run As A Service
+
+```bash
+cp .env.example .env
+npm run serve
+```
+
+By default, local runs bind to `127.0.0.1:8080`. For containers, the Dockerfile sets `HOST=0.0.0.0`.
+
+Health check:
+
+```bash
+curl http://localhost:8080/healthz
+```
+
+Route a request:
+
+```bash
+curl -X POST http://localhost:8080/v1/route \
+  -H "content-type: application/json" \
+  -d '{"prompt":"Analyze this internal source code vulnerability report and choose the safest model route."}'
+```
+
+Metrics:
+
+```bash
+curl http://localhost:8080/metrics
+```
+
+Recent audit events:
+
+```bash
+curl http://localhost:8080/audit
+```
+
+## Docker
+
+```bash
+docker build -t jev-llm-router .
+docker run --rm -p 8080:8080 jev-llm-router
 ```
 
 ## Example Routing Policy
@@ -68,6 +117,16 @@ Then the selected LLM handles only the generation task.
 
 To replace the local adapter with a real Jev call, update `src/jevDecisionLayer.js` and preserve the returned decision shape used by `src/router.js`.
 
+The production contract is owned by `src/harness.js`, which returns:
+
+- `requestId`
+- sanitized input and guardrail violations
+- moderation verdict
+- typed Jev-style decision
+- selected provider/model metadata
+- guarded output
+- telemetry
+
 ## Sample Decision
 
 ```json
@@ -83,3 +142,15 @@ To replace the local adapter with a real Jev call, update `src/jevDecisionLayer.
 }
 ```
 
+## Project Structure
+
+```text
+config/policy.json              Routing and guardrail policy
+src/harness.js                  Production request lifecycle
+src/server.js                   HTTP API
+src/jevDecisionLayer.js         Jev-style typed decision adapter
+src/providers/                  Provider registry and provider clients
+src/observability/              Logs and metrics
+src/audit/                      Recent audit events
+test/                           Node test suite
+```

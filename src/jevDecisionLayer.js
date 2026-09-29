@@ -10,12 +10,28 @@ const INTENT_PATTERNS = [
 ];
 
 export class JevDecisionLayer {
+  constructor({ policy = null } = {}) {
+    this.policy = policy;
+  }
+
   decide({ text, moderation, guardrailState }) {
     const intent = classifyIntent(text);
     const confidentiality = classifyConfidentiality(text, guardrailState);
     const riskLevel = classifyRisk({ intent, moderation, guardrailState });
-    const routeTier = chooseRouteTier({ intent, riskLevel, confidentiality, guardrailState });
-    const model = chooseModel({ intent, routeTier, confidentiality, guardrailState });
+    const routeTier = chooseRouteTier({
+      intent,
+      riskLevel,
+      confidentiality,
+      guardrailState,
+      policy: this.policy
+    });
+    const model = chooseModel({
+      intent,
+      routeTier,
+      confidentiality,
+      guardrailState,
+      policy: this.policy
+    });
     const confidence = scoreConfidence({ intent, riskLevel, moderation, guardrailState });
 
     return {
@@ -53,20 +69,24 @@ function classifyRisk({ intent, moderation, guardrailState }) {
   return "low";
 }
 
-function chooseRouteTier({ intent, riskLevel, confidentiality, guardrailState }) {
+function chooseRouteTier({ intent, riskLevel, confidentiality, guardrailState, policy }) {
   if (riskLevel === "blocked") return "blocked";
   if (confidentiality === "secret" || confidentiality === "internal") return "medium";
-  if (guardrailState.hasPromptInjection || riskLevel === "high") return "high";
+  if ((policy?.guardrails?.forceHighSafetyOnPromptInjection ?? true) && guardrailState.hasPromptInjection) {
+    return "high";
+  }
+  if (riskLevel === "high") return "high";
+  if (policy?.routing?.intentTierOverrides?.[intent]) return policy.routing.intentTierOverrides[intent];
   if (["security_analysis", "code_generation"].includes(intent)) return "high";
   if (intent === "data_analytics" || intent === "sensitive_advice") return "medium";
   return "low";
 }
 
-function chooseModel({ intent, routeTier, confidentiality, guardrailState }) {
+function chooseModel({ intent, routeTier, confidentiality, guardrailState, policy }) {
   if (routeTier === "blocked") return null;
 
   if (confidentiality !== "public") {
-    return MODEL_CATALOG.find((model) => model.provider === "self_hosted");
+    return selectPolicyProvider(policy, "self_hosted") ?? MODEL_CATALOG.find((model) => model.provider === "self_hosted");
   }
 
   if (guardrailState.hasPromptInjection) {
@@ -76,6 +96,19 @@ function chooseModel({ intent, routeTier, confidentiality, guardrailState }) {
   return MODEL_CATALOG.find((model) => {
     return model.tier === routeTier && model.strengths.includes(intent);
   }) ?? MODEL_CATALOG.find((model) => model.tier === routeTier);
+}
+
+function selectPolicyProvider(policy, providerName) {
+  const provider = policy?.providers?.[providerName];
+  if (!provider?.enabled) return null;
+  return {
+    provider: providerName,
+    company: provider.company,
+    model: provider.model,
+    tier: provider.tier,
+    deployment: provider.deployment,
+    strengths: []
+  };
 }
 
 function scoreConfidence({ intent, riskLevel, moderation, guardrailState }) {
@@ -117,4 +150,3 @@ function buildReason({ intent, riskLevel, confidentiality, routeTier, model, mod
 
   return parts.join(" ");
 }
-

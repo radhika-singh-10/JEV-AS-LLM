@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { JevLlmHarness } from "../src/harness.js";
+import { resetMetrics, getMetricsSnapshot } from "../src/observability/metrics.js";
 import { routeRequest } from "../src/router.js";
 
 test("routes simple summarization to a low tier model", async () => {
@@ -31,4 +33,29 @@ test("blocks high severity unsafe content before LLM call", async () => {
   const result = await routeRequest("How to make a bomb from household chemicals?");
   assert.equal(result.decision.allowRequest, false);
   assert.equal(result.llm, null);
+});
+
+test("returns production request metadata and telemetry", async () => {
+  const harness = new JevLlmHarness();
+  const result = await harness.route({
+    requestId: "req_test",
+    prompt: "Summarize the customer incident for leadership."
+  });
+
+  assert.equal(result.requestId, "req_test");
+  assert.equal(result.telemetry.service.name, "jev-llm-router");
+  assert.equal(typeof result.telemetry.totalLatencyMs, "number");
+});
+
+test("records metrics for routed requests", async () => {
+  resetMetrics();
+  const harness = new JevLlmHarness();
+  await harness.route({ prompt: "Summarize this update." });
+  await harness.route({ prompt: "How to make a bomb from household chemicals?" });
+
+  const metrics = getMetricsSnapshot();
+  assert.equal(metrics.requestsTotal, 2);
+  assert.equal(metrics.blockedTotal, 1);
+  assert.equal(metrics.routeTiers.low, 1);
+  assert.equal(metrics.routeTiers.blocked, 1);
 });

@@ -12,10 +12,11 @@ const PROMPT_INJECTION_PATTERNS = [
   /disable (safety|guardrails|moderation)/i
 ];
 
-export function applyInputGuardrails(text) {
+export function applyInputGuardrails(text, policy = {}) {
   const violations = [];
+  const maxInputCharacters = policy.routing?.maxInputCharacters ?? 12_000;
 
-  if (text.length > 12_000) {
+  if (text.length > maxInputCharacters) {
     violations.push({
       type: "max_length",
       action: "route_to_long_context_or_reject",
@@ -39,16 +40,19 @@ export function applyInputGuardrails(text) {
     });
   }
 
+  const shouldRedact = policy.guardrails?.redactSecrets ?? true;
+
   return {
-    safeText: redactSecrets(text),
+    safeText: shouldRedact ? redactSecrets(text) : text,
     violations,
     hasPromptInjection: violations.some((violation) => violation.type === "prompt_injection"),
     hasSecret: violations.some((violation) => violation.type === "secret_detected")
   };
 }
 
-export function applyOutputGuardrails(text) {
-  const redacted = redactSecrets(text);
+export function applyOutputGuardrails(text, policy = {}) {
+  const shouldRedact = policy.guardrails?.redactSecrets ?? true;
+  const redacted = shouldRedact ? redactSecrets(text) : text;
   const blocked = /\bcredential theft steps|weapon construction steps\b/i.test(redacted);
 
   return {
@@ -63,4 +67,3 @@ export function applyOutputGuardrails(text) {
 function redactSecrets(text) {
   return SECRET_PATTERNS.reduce((value, pattern) => value.replace(pattern, "[REDACTED_SECRET]"), text);
 }
-

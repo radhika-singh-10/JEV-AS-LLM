@@ -1,0 +1,61 @@
+{
+  "service": {
+    "name": "jev-llm-router",
+    "version": "1.0.0"
+  },
+  "routing": {
+    "confidenceFloor": 0.62,
+    "maxInputCharacters": 12000,
+    "privateConfidentialityLevels": ["internal", "secret"],
+    "intentTierOverrides": {
+      "security_analysis": "high",
+      "code_generation": "high",
+      "data_analytics": "medium",
+      "sensitive_advice": "medium",
+      "summarization": "low",
+      "casual": "low"
+    }
+  },
+  "guardrails": {
+    "blockHighSeverityModeration": true,
+    "redactSecrets": true,
+    "forceHighSafetyOnPromptInjection": true
+  },
+  "providers": {
+    "openai": {
+      "enabled": true,
+      "company": "OpenAI",
+      "model": "gpt-5.1",
+      "tier": "high",
+      "deployment": "hosted"
+    },
+    "anthropic": {
+      "enabled": true,
+      "company": "Anthropic",
+      "model": "claude-sonnet-4.5",
+      "tier": "high",
+      "deployment": "hosted"
+    },
+    "google": {
+      "enabled": true,
+      "company": "Google",
+      "model": "gemini-2.5-flash",
+      "tier": "medium",
+      "deployment": "hosted"
+    },
+    "openrouter": {
+      "enabled": true,
+      "company": "OpenRouter",
+      "model": "qwen/qwen3-coder",
+      "tier": "low",
+      "deployment": "hosted"
+    },
+    "self_hosted": {
+      "enabled": true,
+      "company": "Internal",
+      "model": "vllm-qwen3-14b",
+      "tier": "medium",
+      "deployment": "private"
+    }
+  }
+}

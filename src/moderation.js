@@ -26,7 +26,7 @@ const MODERATION_RULES = [
   }
 ];
 
-export function moderateContent(text) {
+export function moderateContent(text, policy = {}) {
   const matches = MODERATION_RULES.filter((rule) => rule.pattern.test(text));
   const highestSeverity = matches.some((match) => match.severity === "high")
     ? "high"
@@ -34,8 +34,10 @@ export function moderateContent(text) {
       ? "medium"
       : "low";
 
+  const blockHighSeverity = policy.guardrails?.blockHighSeverityModeration ?? true;
+
   return {
-    allowed: highestSeverity !== "high",
+    allowed: !(blockHighSeverity && highestSeverity === "high"),
     severity: highestSeverity,
     categories: matches.map((match) => match.category),
     reason: matches.length
@@ -43,4 +45,3 @@ export function moderateContent(text) {
       : "No moderation issues detected"
   };
 }
-
